@@ -3,12 +3,12 @@
 import re 
 import numpy as np
 import pickle
+from nltk.stem import PorterStemmer
 from collections import defaultdict
 from keras.layers import Masking
 from keras.models import Sequential
 from keras.layers import Dense
 from keras.layers import Flatten
-from keras.layers import LSTM, GRU, CuDNNLSTM, CuDNNGRU
 from keras.preprocessing import sequence
 from keras.layers.embeddings import Embedding
 from sklearn.model_selection import train_test_split
@@ -16,7 +16,7 @@ from keras.layers.convolutional import Conv1D
 from keras.layers.convolutional import MaxPooling1D
 
 # params
-vocabulary_size = 5000
+vocabulary_size = 10000
 max_words = 50
 
 # Generate dataset
@@ -24,13 +24,15 @@ X = list(np.genfromtxt("sentiment140.csv", delimiter="\",\"", skip_header=1, use
 Y = np.genfromtxt("sentiment140.csv", delimiter=",", skip_header=1, usecols=(0), dtype=str, max_rows= 500000)
     
 # Process data, strip tweets
+stemmer = PorterStemmer()
 for i in range(Y.shape[0]):
     Y[i] = (Y[i][1])
 Y = Y.astype(int)
 Y = Y//4
-for i in range(len(X)):
+for i in range(len(X)-1, -1, -1):
     X[i] = ' '.join(re.sub("(@[A-Za-z0-9]+)|([^0-9A-Za-z \t])|(\w+:\/\/\S+)", " ", X[i][:-1]).split()).lower()
     X[i] = X[i].split(" ")
+    X[i] = [stemmer.stem(word) for word in X[i]]
 
 # Convert words to int based on frequency
 word2id = defaultdict(int)
@@ -81,27 +83,27 @@ cnn.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
 print(cnn.summary())
 
 # Create the rnn model
-rnn = Sequential()
-rnn_batch_size = 32
-rnn.add(Masking(mask_value=0., input_shape=(max_words,)))
-rnn.add(Embedding(vocabulary_size, 32, input_length=max_words))
-NUM_RNN_LAYERS = 1
-rnn.add(CuDNNLSTM(250, return_sequences=True))
-rnn.add(CuDNNLSTM(1))
-rnn.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
-print(rnn.summary())
+# rnn = Sequential()
+# rnn_batch_size = 32
+# rnn.add(Masking(mask_value=0., input_shape=(max_words,)))
+# rnn.add(Embedding(vocabulary_size, 32, input_length=max_words))
+# NUM_RNN_LAYERS = 1
+# rnn.add(CuDNNLSTM(250, return_sequences=True))
+# rnn.add(CuDNNLSTM(1))
+# rnn.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
+# print(rnn.summary())
 
 # Fit and print accuracy
 model.fit(Xtr, Ytr, validation_data=(Xte, Yte), epochs=2, batch_size=64, verbose=2)
 cnn.fit(Xtr, Ytr, validation_data=(Xte, Yte), epochs=2, batch_size=128, verbose=2)
-rnn.fit(Xtr, Ytr, validation_data=(Xte, Yte), epochs=2, batch_size=rnn_batch_size, verbose=1)
+# rnn.fit(Xtr, Ytr, validation_data=(Xte, Yte), epochs=2, batch_size=rnn_batch_size, verbose=1)
 # Final evaluation of the model
 model_scores = model.evaluate(Xte, Yte, verbose=0)
 cnn_scores = cnn.evaluate(Xte, Yte, verbose=0)
-rnn_scores = rnn.evaluate(Xte, Yte, verbose=0)
-print("Model1 Accuracy: {:.2f}\nCNN Accuracy: {:.2f}\nRNN Accuracy: {:.2f}".format(model_scores[1]*100,cnn_scores[1]*100,rnn_scores[1]*100))
+# rnn_scores = rnn.evaluate(Xte, Yte, verbose=0)
+print("Model1 Accuracy: {:.2f}\nCNN Accuracy: {:.2f}".format(model_scores[1]*100,cnn_scores[1]*100))
 
 # Save the models for later use
-model.save('Model1.h5')
-cnn.save('CNNModel.h5')
-rnn.save('RNNModel.h5')
+model.save('Model1_stemmed.h5')
+cnn.save('CNNModel_stemmed.h5')
+# rnn.save('RNNModel.h5')
